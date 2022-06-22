@@ -4,7 +4,7 @@
 //! that the possible moves decrease from the loss of a bishop may compensate for that. Each additional move would add 0.1
 //! The randomness is added so that moves with the same eval can be chosen randomly.
 
-use chess::{BitBoard, ChessMove, Color, MoveGen, Piece, Square, ALL_SQUARES};
+use chess::{BitBoard, ChessMove, Color, MoveGen, Piece, Square, ALL_SQUARES, EMPTY};
 use rand::{prelude::SmallRng, Rng, SeedableRng};
 
 // This  implements Piece Square Tables (PSQT) for each piece type. The
@@ -12,7 +12,7 @@ use rand::{prelude::SmallRng, Rng, SeedableRng};
 // diagram, with A1 on the lower left corner.
 // Taken from https://github.com/mvanthoor/rustic/blob/master/src/evaluation/psqt.rs
 
-type Psqt = [i8; 64];
+type Psqt = [i32; 64];
 
 #[rustfmt::skip]
 const KING_MG: Psqt = [
@@ -100,9 +100,9 @@ pub const FLIP: [usize; 64] = [
 
 pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
     // In the order white, black
-    let mut color_eval: Vec<f32> = vec![];
+    let mut color_eval: [f32; 2] = [0.0, 0.0];
     // In the order of pawn, knight, bishop, root, queen, king
-    let piece_values: Vec<f32> = vec![1.0, 3.0, 3.1, 5.0, 12.0, 100.0];
+    let piece_values: [f32; 6] = [1.0, 3.0, 3.1, 5.0, 12.0, 100.0];
 
     for color in chess::ALL_COLORS {
         let color_bitboard = board.color_combined(color);
@@ -114,8 +114,11 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
             let num_of_pieces_of_type = piece_bitboard & color_bitboard;
             color_specific_eval += (num_of_pieces_of_type.popcnt() as f32) * piece_values[i];
         }
-
-        color_eval.push(color_specific_eval);
+        if color == Color::Black {
+            color_eval[1] += color_specific_eval;
+        } else {
+            color_eval[0] += color_specific_eval;
+        }
     }
 
     let mut white_mobility = 0.0;
@@ -149,42 +152,47 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
         }
     }
 
-    let mut placement_black: f32 = 0.0;
-    let mut placement_white: f32 = 0.0;
+    let mut placement_black = 0;
+    let mut placement_white = 0;
+    let white = board.color_combined(Color::White);
+    let combined = board.combined();
+    let pawns = board.pieces(Piece::Pawn);
+    let knights = board.pieces(Piece::Knight);
+    let bishops = board.pieces(Piece::Bishop);
+    let rooks = board.pieces(Piece::Rook);
+    let queens = board.pieces(Piece::Queen);
+    let kings = board.pieces(Piece::King);
 
+    // Kings is omitted because it is never used: caught by the if statement
     for i in 0..64 {
-        match board.color_on(ALL_SQUARES[i]) {
-            Some(Color::Black) => match board.piece_on(ALL_SQUARES[i]) {
-                Some(Piece::Rook) => placement_black += ROOK_MG[i] as f32 / 100.0,
-                Some(Piece::Bishop) => placement_black += BISHOP_MG[i] as f32 / 100.0,
-                Some(Piece::Knight) => placement_black += KNIGHT_MG[i] as f32 / 100.0,
-                Some(Piece::Pawn) => placement_black += PAWN_MG[i] as f32 / 100.0,
-                Some(Piece::King) => placement_black += KING_MG[i] as f32 / 100.0,
-                Some(Piece::Queen) => placement_black += QUEEN_MG[i] as f32 / 100.0,
-                None => (),
-            },
-            Some(Color::White) => {
-                let ind = FLIP[i];
-                match board.piece_on(ALL_SQUARES[i]) {
-                    Some(Piece::Rook) => placement_white += ROOK_MG[ind] as f32 / 100.0,
-                    Some(Piece::Bishop) => placement_white += BISHOP_MG[ind] as f32 / 100.0,
-                    Some(Piece::Knight) => placement_white += KNIGHT_MG[ind] as f32 / 100.0,
-                    Some(Piece::Pawn) => placement_white += PAWN_MG[ind] as f32 / 100.0,
-                    Some(Piece::King) => placement_white += KING_MG[ind] as f32 / 100.0,
-                    Some(Piece::Queen) => placement_white += QUEEN_MG[ind] as f32 / 100.0,
-                    None => (),
-                }
-            }
-            None => (),
+        let square_board = BitBoard(1u64 << i);
+        if combined & square_board == EMPTY {
+        } else if white & square_board != EMPTY {
+            let ind = FLIP[i];
+            // If the square is white
+            placement_white += PAWN_MG[ind] * (pawns & square_board != EMPTY) as i32;
+            placement_white += ROOK_MG[ind] * (rooks & square_board != EMPTY) as i32;
+            placement_white += BISHOP_MG[ind] * (bishops & square_board != EMPTY) as i32;
+            placement_white += KNIGHT_MG[ind] * (knights & square_board != EMPTY) as i32;
+            placement_white += QUEEN_MG[ind] * (queens & square_board != EMPTY) as i32;
+            placement_white += KING_MG[ind] * (kings & square_board != EMPTY) as i32;
+        } else {
+            // If the square is black (if its not empty or white)
+            placement_black += PAWN_MG[i] * (pawns & square_board != EMPTY) as i32;
+            placement_black += ROOK_MG[i] * (rooks & square_board != EMPTY) as i32;
+            placement_black += BISHOP_MG[i] * (bishops & square_board != EMPTY) as i32;
+            placement_black += KNIGHT_MG[i] * (knights & square_board != EMPTY) as i32;
+            placement_black += QUEEN_MG[i] * (queens & square_board != EMPTY) as i32;
+            placement_black += KING_MG[i] * (kings & square_board != EMPTY) as i32;
         }
     }
-
+    
     if use_mobility {
-        color_eval[0] - color_eval[1] + placement_white - placement_black + white_mobility * 0.1
+        color_eval[0] - color_eval[1] + placement_white as f32 / 100.0 - placement_black as f32 / 100.0 + white_mobility * 0.1
             - black_mobility * 0.1
             + rng.gen_range(-0.01..0.01)
     } else {
-        color_eval[0] - color_eval[1] + placement_white - placement_black
+        color_eval[0] - color_eval[1] + placement_white as f32 / 100.0 - placement_black as f32 / 100.0
             + rng.gen_range(-0.01..0.01)
     }
 }
