@@ -14,8 +14,35 @@ use std::str::FromStr;
 
 fn main() {
     env_logger::init();
-    player_play();
-    // testing();
+    self_play();   
+}
+
+fn self_play() {
+    let mut board = Board::default();
+    let mut tt_white = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+    let mut tt_black = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+
+    loop {
+        let color_to_move = Color::White;
+
+        let engine_move = search::iterative_deepening_search(board, color_to_move, 7, Some(tt_white.clone()));
+        board = board.make_move_new(engine_move);
+        println!("Engine White Move: {}", engine_move);
+
+        if board.status() == BoardStatus::Checkmate || board.status() == BoardStatus::Stalemate {
+            break;
+        }
+
+        let color_to_move = Color::Black;
+
+        let engine_move = search::iterative_deepening_search(board, color_to_move, 7, Some(tt_black.clone()));
+        board = board.make_move_new(engine_move);
+        println!("Engine Black Move: {}", engine_move);
+
+        if board.status() == BoardStatus::Checkmate || board.status() == BoardStatus::Stalemate {
+            break;
+        }
+    }
 }
 
 fn player_play() {
