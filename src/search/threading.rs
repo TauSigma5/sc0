@@ -9,7 +9,7 @@ pub fn divide_work(possible_moves: &mut VecDeque<ChessMove>) -> Vec<Vec<ChessMov
     let num_per_thread = possible_moves.len() / THREADS;
     let mut work_out: Vec<Vec<ChessMove>> = vec![];
 
-    // Could use improvements in the future, since the first thread would evaluate much faster
+    // Could use improvements in the future, since the first thread may evaluate much faster
     // than the second and third threads due to move ordering improvements.
     for _ in 0..THREADS - 2 {
         let mut thread_work = vec![];
