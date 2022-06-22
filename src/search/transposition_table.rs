@@ -1,12 +1,9 @@
 //! Evict carefully, but using a big table prevents problems. Storing
-//! upperbound and lowerbound and other crap is also important. This should probably include 
+//! upperbound and lowerbound and other crap is also important. This should probably include
 //! refutations in the future and other optimizations.
 
 use log::debug;
-use std::{
-    collections::HashMap,
-    // ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
 
 use chess::Board;
 
@@ -35,7 +32,6 @@ pub struct TransTable {
     // Do NOT directly write
     pub tt: HashMap<u64, TransTableEntry>,
 }
-
 
 #[allow(dead_code)]
 impl TransTable {

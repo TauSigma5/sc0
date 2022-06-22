@@ -33,7 +33,7 @@ pub fn divide_work(possible_moves: &mut VecDeque<ChessMove>) -> Vec<Vec<ChessMov
             );
             offset -= 1;
         }
-    
+
         work_out.push(thread_work);
     }
 

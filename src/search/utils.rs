@@ -1,7 +1,7 @@
 use std::sync::atomic::{self, AtomicU32};
 
 use atomic::Ordering;
-use chess::{ChessMove, Color, Board, MoveGen};
+use chess::{Board, ChessMove, Color, MoveGen};
 
 pub fn flip_color(input_color: Color) -> Color {
     if input_color == Color::White {
@@ -53,6 +53,6 @@ pub fn get_quiet_moves(board: Board, color: Color) -> Vec<ChessMove> {
     // Return all quiet moves for a color
     let mut moves = MoveGen::new_legal(&board);
     moves.set_iterator_mask(*board.color_combined(flip_color(color)));
-    
+
     moves.collect()
 }

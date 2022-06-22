@@ -120,7 +120,12 @@ fn negamax_root(
             let beta = f32::INFINITY;
 
             for (i, possible_move) in thread_work.iter().enumerate() {
-                debug!("Thread {}: Evaluating {}/{} moves", current_thread_num, i, thread_work.len());
+                debug!(
+                    "Thread {}: Evaluating {}/{} moves",
+                    current_thread_num,
+                    i,
+                    thread_work.len()
+                );
 
                 let new_board = board.make_move_new(*possible_move);
 
