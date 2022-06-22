@@ -4,6 +4,7 @@ use chess::{self, BoardStatus, ChessMove};
 use chess::{Board, Color};
 use log::debug;
 use std::io;
+use std::sync::{Arc, Mutex};
 use search::transposition_table;
 #[macro_use]
 extern crate lazy_static;
@@ -13,13 +14,13 @@ use std::str::FromStr;
 
 fn main() {
     env_logger::init();
-    //player_play();
+    // player_play();
     testing();
 }
 
 fn player_play() {
     let mut board = Board::default();
-    let mut tt = &mut transposition_table::TransTable::new();
+    let mut tt = Arc::new(Mutex::new(transposition_table::TransTable::new()));
 
     loop {
         let mut buffer = String::new();
@@ -34,7 +35,7 @@ fn player_play() {
 
         let color_to_move = Color::Black;
 
-        let engine_move = search::iterative_deepening_search(board, color_to_move, 7, Some(tt));
+        let engine_move = search::iterative_deepening_search(board, color_to_move, 6, Some(tt.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine move: {}", engine_move);
 
@@ -46,7 +47,7 @@ fn player_play() {
 
 fn testing() {
     let color_to_move = Color::Black;
-    let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4")
+    let board = Board::from_str("2R2rk1/4pppp/8/8/8/8/6K1/2R5 w - - 0 1")
         .expect("Invalid FEN");
     let best_move = search::iterative_deepening_search(board, color_to_move, 7, None);
     debug!("Test");
