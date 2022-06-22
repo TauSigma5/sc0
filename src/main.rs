@@ -14,8 +14,8 @@ use std::str::FromStr;
 
 fn main() {
     env_logger::init();
-    // player_play();
-    testing();
+    player_play();
+    // testing();
 }
 
 fn player_play() {
@@ -35,7 +35,7 @@ fn player_play() {
 
         let color_to_move = Color::Black;
 
-        let engine_move = search::iterative_deepening_search(board, color_to_move, 6, Some(tt.clone()));
+        let engine_move = search::iterative_deepening_search(board, color_to_move, 7, Some(tt.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine move: {}", engine_move);
 
