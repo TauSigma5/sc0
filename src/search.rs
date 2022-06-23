@@ -93,7 +93,7 @@ pub fn iterative_deepening_search(
         .expect("This is imepossible. There should be at least one possible move.")
 }
 
-fn negamax_root (
+fn negamax_root(
     board: Board,
     color_to_move: Color,
     max_depth: i32,

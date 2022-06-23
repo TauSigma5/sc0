@@ -5,7 +5,7 @@
 //! The randomness is added so that moves with the same eval can be chosen randomly.
 
 use chess::{Color, MoveGen};
-use rand::{prelude::SmallRng};
+use rand::prelude::SmallRng;
 
 // This  implements Piece Square Tables (PSQT) for each piece type. The
 // PSQT's are written from White's point of view, as if looking at a chess
@@ -179,7 +179,9 @@ pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
     }
 
     if use_mobility {
-        color_piece_tables[0] as f32 / 50.0 - color_piece_tables[1] as f32 / 50.0 + white_mobility
+        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 50.0
+            - color_piece_tables[1] as f32 / 50.0
+            + white_mobility
             - black_mobility
     } else {
         color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 50.0

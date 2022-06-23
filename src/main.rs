@@ -12,8 +12,8 @@ use std::str::FromStr;
 fn main() {
     env_logger::init();
     // self_play();
-    // testing();
-    player_play();
+    testing();
+    // player_play();
 }
 
 #[allow(dead_code)]
