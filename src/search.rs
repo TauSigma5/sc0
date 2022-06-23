@@ -68,7 +68,7 @@ pub fn iterative_deepening_search(
         // the best moves from the last iteration are searched first to improve alpha-beta pruning performance
         debug!("Evaluating with depth {}", depth);
         // Need to rethink... this may result in two copies of the transposition table at once
-        let mut scores = negamax_root(board, color_to_move, depth, possible_moves, tt.clone());
+        let mut scores = bns_root(board, color_to_move, depth, possible_moves, tt.clone());
 
         // Stop if you found checkmate
         if scores[0].eval == 10000.0 {
@@ -92,7 +92,7 @@ pub fn iterative_deepening_search(
         .expect("This is imepossible. There should be at least one possible move.")
 }
 
-fn negamax_root(
+fn bns_root(
     board: Board,
     color_to_move: Color,
     max_depth: i32,
@@ -101,6 +101,7 @@ fn negamax_root(
 ) -> Vec<MoveEval> {
     // Returns moves in best to worst order
     let mut combined_evals: Vec<MoveEval> = vec![];
+    let subtree_count = moves.len();
 
     let mut scores: Vec<MoveEval> = vec![];
     let mut rng = SmallRng::from_entropy();
@@ -147,11 +148,11 @@ fn negamax_root(
 
             combined_evals.push(score);
 
-            let alpha = f32::max(alpha, evaluation);
-
             if alpha >= beta {
                 break;
             }
+
+            let alpha = f32::max(alpha, evaluation);
         }
     }
 
@@ -243,11 +244,11 @@ fn negamax(
             ),
         );
 
-        alpha = f32::max(alpha, value);
-
         if alpha >= beta {
             break;
         }
+
+        alpha = f32::max(alpha, value);
     }
 
     // Don't write checkmates into the transposition table
