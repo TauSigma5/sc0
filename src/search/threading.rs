@@ -2,8 +2,10 @@ use std::collections::VecDeque;
 
 use chess::ChessMove;
 
+#[allow(dead_code)]
 const THREADS: usize = 4;
 
+#[allow(dead_code)]
 pub fn divide_work(possible_moves: &mut VecDeque<ChessMove>) -> Vec<Vec<ChessMove>> {
     // Try to split them up as evenly as possible
     let mut work_out: Vec<Vec<ChessMove>> = vec![];

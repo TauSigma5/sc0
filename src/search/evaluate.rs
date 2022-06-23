@@ -154,7 +154,7 @@ pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
     // Don't use mobility if you are in check
     if board.checkers().popcnt() > 0 {
         use_mobility = false;
-        
+
         if board.side_to_move() == Color::White {
             color_eval[0] -= 0.2
         } else {

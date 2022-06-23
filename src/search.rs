@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::thread;
 
 use chess::{Board, ChessMove, Color, MoveGen};
 use log::debug;
@@ -97,93 +96,69 @@ fn negamax_root(
     board: Board,
     color_to_move: Color,
     max_depth: i32,
-    mut moves: VecDeque<ChessMove>,
+    moves: VecDeque<ChessMove>,
     tt: Arc<Mutex<TransTable>>,
 ) -> Vec<MoveEval> {
     // Returns moves in best to worst order
     let mut combined_evals: Vec<MoveEval> = vec![];
-    let mut handles = vec![];
 
-    let work = threading::divide_work(&mut moves);
+    let mut scores: Vec<MoveEval> = vec![];
+    let mut rng = SmallRng::from_entropy();
 
-    for (thread_num, thread_work) in work.into_iter().enumerate() {
-        let thread_local_tt = tt.clone();
+    let alpha: f32 = -f32::INFINITY;
+    let beta = f32::INFINITY;
 
-        let thread = thread::spawn(move || {
-            let mut scores: Vec<MoveEval> = vec![];
-            let mut rng = SmallRng::from_entropy();
-            let current_thread_num = thread_num;
+    for (i, possible_move) in moves.iter().enumerate() {
+        debug!("Evaluating {}/{} moves", i + 1, moves.len());
 
-            let alpha: f32 = -f32::INFINITY;
-            let beta = f32::INFINITY;
+        let new_board = board.make_move_new(*possible_move);
 
-            for (i, possible_move) in thread_work.iter().enumerate() {
-                debug!(
-                    "Thread {}: Evaluating {}/{} moves",
-                    current_thread_num,
-                    i,
-                    thread_work.len()
-                );
+        // Check if it's a terminal node
+        if new_board.status() == chess::BoardStatus::Checkmate {
+            // Return 10000 and +/- for how close to checkmate it is
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: 10000.0,
+            };
+            scores.push(score);
+            break;
+        } else if new_board.status() == chess::BoardStatus::Stalemate {
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: -1000.0,
+            };
+            scores.push(score);
+        } else {
+            let evaluation = -negamax(
+                new_board,
+                max_depth,
+                max_depth - 1,
+                -beta,
+                -alpha,
+                utils::flip_color(color_to_move),
+                tt.clone(),
+                &mut rng,
+            );
 
-                let new_board = board.make_move_new(*possible_move);
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: evaluation,
+            };
 
-                // Check if it's a terminal node
-                if new_board.status() == chess::BoardStatus::Checkmate {
-                    // Return 10000 and +/- for how close to checkmate it is
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: 10000.0,
-                    };
-                    scores.push(score);
-                    break;
-                } else if new_board.status() == chess::BoardStatus::Stalemate {
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: -1000.0,
-                    };
-                    scores.push(score);
-                } else {
-                    let evaluation = -negamax(
-                        new_board,
-                        max_depth,
-                        max_depth - 1,
-                        -beta,
-                        -alpha,
-                        utils::flip_color(color_to_move),
-                        thread_local_tt.clone(),
-                        &mut rng,
-                    );
+            combined_evals.push(score);
 
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: evaluation,
-                    };
+            let alpha = f32::max(alpha, evaluation);
 
-                    scores.push(score);
-
-                    let alpha = f32::max(alpha, evaluation);
-
-                    if alpha >= beta {
-                        break;
-                    }
-                }
+            if alpha >= beta {
+                break;
             }
-
-            scores
-        });
-
-        handles.push(thread);
-    }
-
-    for handle in handles {
-        let mut output = handle.join().unwrap();
-        combined_evals.append(&mut output);
+        }
     }
 
     // Sort from best to worst
     combined_evals.sort_by(|a, b| b.cmp(a));
 
-    combined_evals
+    return combined_evals;
 }
 
 fn negamax(
