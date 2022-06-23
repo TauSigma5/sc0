@@ -107,13 +107,14 @@ pub const FLIP: [usize; 128] = [
     56, 57, 58, 59, 60, 61, 62, 63,
 ];
 
+#[inline(always)]
 pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
     // In the order white, black
     let mut color_eval: [f32; 2] = [0.0, 0.0];
     let mut color_piece_tables: [i32; 2] = [0, 0];
 
     // In the order of pawn, knight, bishop, root, queen, king
-    let piece_values: [f32; 6] = [1.0, 3.0, 3.1, 5.0, 12.0, 100.0];
+    let piece_values: [f32; 6] = [1.0, 3.0, 3.0, 5.0, 12.0, 100.0];
 
     for color in chess::ALL_COLORS {
         let color_bitboard = board.color_combined(color);
@@ -125,6 +126,7 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
             // Looks for pieces of that type of that color
             let num_of_pieces_of_type = piece_bitboard & color_bitboard;
             color_specific_eval += (num_of_pieces_of_type.popcnt() as f32) * piece_values[i];
+
             let mut piece_int = num_of_pieces_of_type.0;
             let piece_index = piece.to_index();
             let mut zeros = piece_int.leading_zeros();
@@ -150,24 +152,24 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
 
     // Don't use mobility if you are in check
     if board.side_to_move() == Color::White {
-        white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.1;
+        white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
         let new_board = board.null_move();
 
         match new_board {
             Some(board) => {
-                black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.1;
+                black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
             }
             None => {
                 use_mobility = false;
             }
         }
     } else {
-        black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.1;
+        black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
         let new_board = board.null_move();
 
         match new_board {
             Some(board) => {
-                white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.1;
+                white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
             }
             None => {
                 use_mobility = false;
@@ -176,14 +178,10 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
     }
 
     if use_mobility {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 100.0
-            - color_piece_tables[1] as f32 / 100.0
-            + white_mobility * 0.1
-            - black_mobility * 0.1
-            + rng.gen_range(-0.01..0.01)
+        color_piece_tables[0] as f32 / 50.0 - color_piece_tables[1] as f32 / 50.0 + white_mobility
+            - black_mobility
     } else {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 100.0
-            - color_piece_tables[1] as f32 / 100.0
-            + rng.gen_range(-0.01..0.01)
+        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 50.0
+            - color_piece_tables[1] as f32 / 50.0
     }
 }

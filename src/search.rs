@@ -12,7 +12,7 @@ use transposition_table::{Flag, TransTable, TransTableEntry};
 
 mod evaluate;
 mod threading;
-pub(crate) mod transposition_table;
+pub mod transposition_table;
 mod utils;
 
 #[derive(Debug)]
@@ -220,7 +220,7 @@ fn negamax(
     }
 
     let tt_entry = tt.lock().unwrap();
-    let tt_entry_unwrapped = tt_entry.tt.get(&current_board.get_hash());
+    let tt_entry_unwrapped = tt_entry.tt.get(&current_board);
 
     match tt_entry_unwrapped {
         Some(entry) => {

@@ -78,7 +78,8 @@ fn player_play() {
 
 fn testing() {
     let color_to_move = Color::Black;
-    let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4").expect("Invalid FEN");
+    let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4")
+        .expect("Invalid FEN");
     let best_move = search::iterative_deepening_search(board, color_to_move, 7, None);
     debug!("Test");
 

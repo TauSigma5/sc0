@@ -49,7 +49,7 @@ impl Clone for AtomicF32 {
     }
 }
 
-pub fn get_quiet_moves(board: Board, color: Color) -> Vec<ChessMove> {
+pub fn get_quiet_moves(board: &Board, color: Color) -> Vec<ChessMove> {
     // Return all quiet moves for a color
     let mut moves = MoveGen::new_legal(&board);
     moves.set_iterator_mask(*board.color_combined(flip_color(color)));
