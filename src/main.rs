@@ -6,8 +6,6 @@ use log::debug;
 use search::transposition_table;
 use std::io;
 use std::sync::{Arc, Mutex};
-#[macro_use]
-extern crate lazy_static;
 
 use std::str::FromStr;
 
@@ -18,10 +16,11 @@ fn main() {
     player_play();
 }
 
+#[allow(dead_code)]
 fn self_play() {
     let mut board = Board::default();
-    let mut tt_white = Arc::new(Mutex::new(transposition_table::TransTable::new()));
-    let mut tt_black = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+    let tt_white = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+    let tt_black = Arc::new(Mutex::new(transposition_table::TransTable::new()));
 
     loop {
         let color_to_move = Color::White;
@@ -48,9 +47,10 @@ fn self_play() {
     }
 }
 
+#[allow(dead_code)]
 fn player_play() {
     let mut board = Board::default();
-    let mut tt = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+    let tt = Arc::new(Mutex::new(transposition_table::TransTable::new()));
 
     loop {
         let mut buffer = String::new();
@@ -76,6 +76,7 @@ fn player_play() {
     }
 }
 
+#[allow(dead_code)]
 fn testing() {
     let color_to_move = Color::Black;
     let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4")

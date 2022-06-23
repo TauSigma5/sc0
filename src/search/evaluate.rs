@@ -4,8 +4,8 @@
 //! that the possible moves decrease from the loss of a bishop may compensate for that. Each additional move would add 0.1
 //! The randomness is added so that moves with the same eval can be chosen randomly.
 
-use chess::{BitBoard, ChessMove, Color, MoveGen, Piece, Square, ALL_SQUARES, EMPTY};
-use rand::{prelude::SmallRng, Rng, SeedableRng};
+use chess::{Color, MoveGen};
+use rand::{prelude::SmallRng};
 
 // This  implements Piece Square Tables (PSQT) for each piece type. The
 // PSQT's are written from White's point of view, as if looking at a chess
@@ -108,7 +108,7 @@ pub const FLIP: [usize; 128] = [
 ];
 
 #[inline(always)]
-pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
+pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
     // In the order white, black
     let mut color_eval: [f32; 2] = [0.0, 0.0];
     let mut color_piece_tables: [i32; 2] = [0, 0];
@@ -130,10 +130,11 @@ pub fn evaluate(board: chess::Board, rng: &mut SmallRng) -> f32 {
             let mut piece_int = num_of_pieces_of_type.0;
             let piece_index = piece.to_index();
             let mut zeros = piece_int.leading_zeros();
-            for j in 0..piece_int.count_ones() {
+            for _ in 0..piece_int.count_ones() {
                 color_specific_eval_int +=
                     PIECE_TABLE_ARRAY[piece_index][FLIP[64 * color.to_index() + i]];
                 piece_int ^= 1 << piece_int.trailing_zeros();
+                // Correctness error?
                 zeros = piece_int.leading_zeros();
             }
         }

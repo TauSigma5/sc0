@@ -5,7 +5,7 @@
 use log::debug;
 use std::collections::HashMap;
 
-use chess::{Board, ChessMove};
+use chess::{Board};
 
 // TODO: use size in memory instead of absolute size
 const MAX_ENTRIES: usize = 100000000;

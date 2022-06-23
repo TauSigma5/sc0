@@ -93,7 +93,7 @@ pub fn iterative_deepening_search(
         .expect("This is imepossible. There should be at least one possible move.")
 }
 
-fn negamax_root(
+fn negamax_root (
     board: Board,
     color_to_move: Color,
     max_depth: i32,
@@ -103,13 +103,11 @@ fn negamax_root(
     // Returns moves in best to worst order
     let mut combined_evals: Vec<MoveEval> = vec![];
     let mut handles = vec![];
-    let mut thread_num = 0;
-    // Should probably switch out for a custom implementation
 
     let work = threading::divide_work(&mut moves);
 
-    for thread_work in work {
-        let mut thread_local_tt = tt.clone();
+    for (thread_num, thread_work) in work.into_iter().enumerate() {
+        let thread_local_tt = tt.clone();
 
         let thread = thread::spawn(move || {
             let mut scores: Vec<MoveEval> = vec![];
@@ -175,7 +173,6 @@ fn negamax_root(
         });
 
         handles.push(thread);
-        thread_num += 1;
     }
 
     for handle in handles {

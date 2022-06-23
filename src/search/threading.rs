@@ -7,10 +7,11 @@ const THREADS: usize = 4;
 pub fn divide_work(possible_moves: &mut VecDeque<ChessMove>) -> Vec<Vec<ChessMove>> {
     // Try to split them up as evenly as possible
     let mut work_out: Vec<Vec<ChessMove>> = vec![];
-    for i in 0..THREADS {
+    for _ in 0..THREADS {
         work_out.push(Vec::new());
     }
 
+    // Give each thread at least one good move
     while !possible_moves.is_empty() {
         for i in 0..THREADS {
             if let Some(possible_move) = possible_moves.pop_front() {
@@ -22,8 +23,7 @@ pub fn divide_work(possible_moves: &mut VecDeque<ChessMove>) -> Vec<Vec<ChessMov
     }
 
     /*
-    // Could use improvements in the future, since the first thread may evaluate much faster
-    // than the second and third threads due to move ordering improvements.
+    // Not used, since each thread
     for _ in 0..THREADS {
         let mut thread_work = vec![];
 

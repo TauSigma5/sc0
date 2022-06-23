@@ -1,4 +1,4 @@
-#[cfg(test)]
+#![cfg(test)]
 use crate::search;
 use chess::{Board, Color};
 use std::str::FromStr;
