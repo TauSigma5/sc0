@@ -152,39 +152,33 @@ pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
     let mut use_mobility = true;
 
     // Don't use mobility if you are in check
-    if board.side_to_move() == Color::White {
-        white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
-        let new_board = board.null_move();
-
-        match new_board {
-            Some(board) => {
-                black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
-            }
-            None => {
-                use_mobility = false;
-            }
+    if board.checkers().popcnt() > 0 {
+        use_mobility = false;
+        
+        if board.side_to_move() == Color::White {
+            color_eval[0] -= 0.2
+        } else {
+            color_eval[1] -= 0.2
         }
     } else {
-        black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
-        let new_board = board.null_move();
-
-        match new_board {
-            Some(board) => {
-                white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.02;
-            }
-            None => {
-                use_mobility = false;
-            }
+        if board.side_to_move() == Color::White {
+            white_mobility = MoveGen::new_legal(&board).len() as f32 * 0.05;
+            let new_board = board.null_move().unwrap();
+            black_mobility = MoveGen::new_legal(&new_board).len() as f32 * 0.05;
+        } else {
+            black_mobility = MoveGen::new_legal(&board).len() as f32 * 0.05;
+            let new_board = board.null_move().unwrap();
+            white_mobility = MoveGen::new_legal(&new_board).len() as f32 * 0.05;
         }
     }
 
     if use_mobility {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 50.0
-            - color_piece_tables[1] as f32 / 50.0
+        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 64.0
+            - color_piece_tables[1] as f32 / 64.0
             + white_mobility
             - black_mobility
     } else {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 50.0
-            - color_piece_tables[1] as f32 / 50.0
+        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 64.0
+            - color_piece_tables[1] as f32 / 64.0
     }
 }
