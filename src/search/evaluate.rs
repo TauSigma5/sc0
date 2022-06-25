@@ -108,42 +108,33 @@ pub const FLIP: [usize; 128] = [
 ];
 
 #[inline(always)]
-pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
+pub fn evaluate(board: chess::Board) -> f32 {
     // In the order white, black
-    let mut color_eval: [f32; 2] = [0.0, 0.0];
-    let mut color_piece_tables: [i32; 2] = [0, 0];
+    let mut color_eval: [i32; 2] = [0, 0];
 
     // In the order of pawn, knight, bishop, root, queen, king
-    let piece_values: [f32; 6] = [1.0, 3.0, 3.0, 5.0, 12.0, 100.0];
+    let piece_values: [i32; 6] = [100, 300, 310, 500, 1200, 0];
 
     for color in chess::ALL_COLORS {
         let color_bitboard = board.color_combined(color);
-        let mut color_specific_eval: f32 = 0.0;
-        let mut color_specific_eval_int: i32 = 0;
+        let mut color_specific_eval: i32 = 0;
 
         for (i, piece) in chess::ALL_PIECES.iter().enumerate() {
             let piece_bitboard = board.pieces(*piece);
             // Looks for pieces of that type of that color
             let num_of_pieces_of_type = piece_bitboard & color_bitboard;
-            color_specific_eval += (num_of_pieces_of_type.popcnt() as f32) * piece_values[i];
-
+            color_specific_eval += num_of_pieces_of_type.popcnt() as i32 * piece_values[i];
             let mut piece_int = num_of_pieces_of_type.0;
-            let piece_index = piece.to_index();
-            let mut zeros = piece_int.leading_zeros();
             for _ in 0..piece_int.count_ones() {
-                color_specific_eval_int +=
-                    PIECE_TABLE_ARRAY[piece_index][FLIP[64 * color.to_index() + i]];
+                color_specific_eval += PIECE_TABLE_ARRAY[i]
+                    [FLIP[64 * color.to_index() + piece_int.leading_zeros() as usize]];
                 piece_int ^= 1 << piece_int.trailing_zeros();
-                // Correctness error?
-                zeros = piece_int.leading_zeros();
             }
         }
         if color == Color::Black {
             color_eval[1] += color_specific_eval;
-            color_piece_tables[1] += color_specific_eval_int;
         } else {
             color_eval[0] += color_specific_eval;
-            color_piece_tables[0] += color_specific_eval_int;
         }
     }
 
@@ -156,9 +147,9 @@ pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
         use_mobility = false;
 
         if board.side_to_move() == Color::White {
-            color_eval[0] -= 0.2
+            color_eval[0] -= 20
         } else {
-            color_eval[1] -= 0.2
+            color_eval[1] -= 20
         }
     } else {
         if board.side_to_move() == Color::White {
@@ -173,12 +164,10 @@ pub fn evaluate(board: chess::Board, _rng: &mut SmallRng) -> f32 {
     }
 
     if use_mobility {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 64.0
-            - color_piece_tables[1] as f32 / 64.0
+        color_eval[0] as f32 / 100.0 - color_eval[1] as f32 / 100.0
             + white_mobility
             - black_mobility
     } else {
-        color_eval[0] - color_eval[1] + color_piece_tables[0] as f32 / 64.0
-            - color_piece_tables[1] as f32 / 64.0
+        color_eval[0] as f32 / 100.0 - color_eval[1] as f32 / 100.0
     }
 }

@@ -2,6 +2,9 @@ use std::sync::atomic::{self, AtomicU32};
 
 use atomic::Ordering;
 use chess::{Board, ChessMove, Color, MoveGen};
+use log::debug;
+
+use super::MoveEval;
 
 #[allow(dead_code)]
 pub fn flip_color(input_color: Color) -> Color {
@@ -13,14 +16,14 @@ pub fn flip_color(input_color: Color) -> Color {
 }
 
 #[allow(dead_code)]
-pub fn dump_top_moves(moves: &Vec<ChessMove>) -> Vec<String> {
+pub fn dump_top_moves(moves: &Vec<MoveEval>) {
     let mut output: Vec<String> = vec![];
 
     for chess_move in moves {
-        output.push(chess_move.to_string());
+        debug!("{}", chess_move);
     }
 
-    output
+    
 }
 
 // Stolen shamelessly from https://github.com/rust-lang/rust/issues/72353 because

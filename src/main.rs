@@ -1,6 +1,6 @@
 mod search;
 mod tests;
-use chess::{self, BoardStatus, ChessMove};
+use chess::{self, BoardStatus, ChessMove, MoveGen};
 use chess::{Board, Color};
 use log::debug;
 use search::transposition_table;
@@ -66,7 +66,7 @@ fn player_play() {
         let color_to_move = Color::Black;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 7, Some(tt.clone()));
+            search::iterative_deepening_search(board, color_to_move, 8, Some(tt.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine move: {}", engine_move);
 
@@ -78,11 +78,22 @@ fn player_play() {
 
 #[allow(dead_code)]
 fn testing() {
-    let color_to_move = Color::Black;
-    let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4")
+    /* 
+    let board = Board::from_str("kbK5/pp6/1P6/8/8/8/8/R7 w - -")
         .expect("Invalid FEN");
-    let best_move = search::iterative_deepening_search(board, color_to_move, 7, None);
-    debug!("Test");
+    let moves = MoveGen::new_legal(&board).collect();
+    let tt = Arc::new(Mutex::new(transposition_table::TransTable::new()));
 
-    println!("Top Engine Move: {}", best_move);
+    let best_move = search::negamax_root(board, 198.0, 197.0, 6, moves, tt);
+
+    search::utils::dump_top_moves(&best_move);
+    println!("Top Engine Move: {}", best_move[0]);
+    */
+
+    // Tests the response of engine after e5 from vienna gambit accepted.
+   // Makes sure it doesn't miss mate in ones
+   let color_to_move = Color::White;
+   let board = Board::from_str("kbK5/pp6/1P6/8/8/8/8/R7 w - -").expect("Invalid FEN");
+   let best_move = search::iterative_deepening_search(board, color_to_move, 6, None);
+   println!("Top engine move: {}", best_move);
 }
