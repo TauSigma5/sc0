@@ -84,7 +84,7 @@ pub fn iterative_deepening_search(
 
     let mut possible_moves: Vec<ChessMove> = MoveGen::new_legal(&board).collect();
 
-    /* 
+    /*
     for _ in 0..helper_threads {
         // Shuffle the possible moves for better performance
         let mut thread_local_move_list = possible_moves.clone();
@@ -114,6 +114,7 @@ pub fn iterative_deepening_search(
             depth
         );
 
+        
         // Need to rethink... this may result in two copies of the transposition table at once
         let search_result = mtdf(
             board,
@@ -285,7 +286,7 @@ fn negamax(
     let alpha_original = alpha;
 
     let tt_entry = tt.lock().unwrap();
-    let tt_entry_unwrapped = tt_entry.tt.get(&current_board);
+    let tt_entry_unwrapped = tt_entry.tt.get(&current_board.get_hash());
 
     match tt_entry_unwrapped {
         Some(entry) => {

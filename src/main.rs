@@ -26,9 +26,9 @@ fn self_play() {
         let color_to_move = Color::White;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 9, Some(tt_white.clone()));
+            search::iterative_deepening_search(board, color_to_move, 7, Some(tt_white.clone()));
         board = board.make_move_new(engine_move);
-        println!("Engine White Move: {}", engine_move);
+        println!("{}", engine_move);
 
         if board.status() == BoardStatus::Checkmate || board.status() == BoardStatus::Stalemate {
             break;
@@ -37,9 +37,9 @@ fn self_play() {
         let color_to_move = Color::Black;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 9, Some(tt_black.clone()));
+            search::iterative_deepening_search(board, color_to_move, 7, Some(tt_black.clone()));
         board = board.make_move_new(engine_move);
-        println!("Engine Black Move: {}", engine_move);
+        println!("{}", engine_move);
 
         if board.status() == BoardStatus::Checkmate || board.status() == BoardStatus::Stalemate {
             break;
@@ -66,7 +66,7 @@ fn player_play() {
         let color_to_move = Color::Black;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 7, Some(tt.clone()));
+            search::iterative_deepening_search(board, color_to_move, 8, Some(tt.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine move: {}", engine_move);
 
