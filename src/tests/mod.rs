@@ -44,21 +44,20 @@ fn morphy2() {
 
 #[test]
 fn graucolle3() {
-    // Tests the response of engine when faced with backrank checkmate opportunity
+    // Tests the response of engine when faced with a mate in 3
     let color_to_move = Color::White;
     let board =
         Board::from_str("1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0").expect("Invalid FEN");
-    let best_move = search::iterative_deepening_search(board, color_to_move, 6, None);
+    let best_move = search::iterative_deepening_search(board, color_to_move, 7, None);
     assert!(best_move.to_string() == "c5a6");
 }
 
 #[test]
 fn kasperov4() {
-    // Tests the response of engine when faced with backrank checkmate opportunity
+    // Tests the response of engine when faced with a tough puzzle
     let color_to_move = Color::White;
     let board =
         Board::from_str("4k2r/1R3R2/p3p1pp/4b3/1BnNr3/8/P1P5/5K2 w - - 1 0").expect("Invalid FEN");
     let best_move = search::iterative_deepening_search(board, color_to_move, 8, None);
     assert!(best_move.to_string() == "f7e7");
 }
-
