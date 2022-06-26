@@ -1,22 +1,30 @@
 use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Display;
+use std::sync::atomic::AtomicBool;
 use std::thread;
 
 use chess::{Board, ChessMove, Color, MoveGen};
 use log::debug;
+use log::info;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use rand::{prelude::SmallRng, SeedableRng};
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use transposition_table::{Flag, TransTable, TransTableEntry};
 
-mod evaluate;
-mod threading;
-pub mod transposition_table;
-mod utils;
+use crate::search::utils::dump_top_moves;
 
-#[derive(Debug)]
-struct MoveEval {
+mod evaluate;
+pub(crate) mod transposition_table;
+pub(crate) mod utils;
+
+const helper_threads: i32 = 3;
+
+#[derive(Debug, Copy, Clone)]
+pub struct MoveEval {
     chess_move: ChessMove,
     eval: f32,
 }
@@ -47,6 +55,12 @@ impl Ord for MoveEval {
     }
 }
 
+impl Display for MoveEval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.chess_move, self.eval)
+    }
+}
+
 // Uses iterative deepening technique and transposition tables to optimize faster search
 pub fn iterative_deepening_search(
     board: Board,
@@ -55,135 +69,208 @@ pub fn iterative_deepening_search(
     tt_raw: Option<Arc<Mutex<TransTable>>>,
 ) -> ChessMove {
     // start with depth 4
-    let mut depth = 4;
+    let mut depth = 2;
+    let mut initial_guess = 0.0;
     let mut tt: Arc<Mutex<TransTable>> =
         Arc::new(Mutex::new(transposition_table::TransTable::new()));
+    let mut best_move: Option<MoveEval> = None;
+    let mut rng = thread_rng();
+    let mut stop_now = Arc::new(AtomicBool::new(false));
+    // let mut handles = vec![];
 
     if let Some(external_table) = tt_raw {
         tt = external_table;
     }
 
-    let mut possible_moves: VecDeque<ChessMove> = MoveGen::new_legal(&board).collect();
+    let mut possible_moves: Vec<ChessMove> = MoveGen::new_legal(&board).collect();
+
+    /* 
+    for _ in 0..helper_threads {
+        // Shuffle the possible moves for better performance
+        let mut thread_local_move_list = possible_moves.clone();
+        thread_local_move_list.shuffle(&mut rng);
+        let thread_local_tt = tt.clone();
+        let thread_local_stop_now = stop_now.clone();
+
+        thread::spawn(move || {
+            negamax(
+                board,
+                target_depth,
+                target_depth,
+                -f32::INFINITY,
+                f32::INFINITY,
+                thread_local_tt,
+                thread_local_stop_now,
+            );
+        });
+    }
+    */
 
     while depth < target_depth + 1 {
         // the best moves from the last iteration are searched first to improve alpha-beta pruning performance
-        debug!("Evaluating with depth {}", depth);
+        debug!(
+            "Evaluating {} positions with depth {}",
+            possible_moves.len(),
+            depth
+        );
+
         // Need to rethink... this may result in two copies of the transposition table at once
-        let mut scores = negamax_root(board, color_to_move, depth, possible_moves, tt.clone());
+        let search_result = mtdf(
+            board,
+            depth,
+            color_to_move,
+            initial_guess,
+            &possible_moves,
+            tt.clone(),
+            stop_now.clone(),
+        )
+        .expect("Got empty response from MTDF");
+        best_move = Some(search_result[0]);
 
-        // Stop if you found checkmate
-        if scores[0].eval == 10000.0 {
-            return scores[0].chess_move;
+        if search_result[0].eval > 175.0 {
+            return search_result[0].chess_move;
         }
-
-        let mut best_moves: VecDeque<ChessMove> = VecDeque::new();
-        scores.reverse();
-        for score in scores {
-            debug!("{}, {}", score.chess_move, score.eval);
-            best_moves.push_back(score.chess_move);
-        }
-
-        possible_moves = best_moves;
+        // Best move from last depth is the first guess for current depth.
+        // keep inital guesses at 0, since using different guesses misleads the engine
+        initial_guess = best_move.unwrap().eval;
 
         depth += 1;
     }
 
-    *possible_moves
-        .get(possible_moves.len() - 1)
-        .expect("This is imepossible. There should be at least one possible move.")
+    stop_now.store(true, std::sync::atomic::Ordering::Release);
+
+    best_move.unwrap().chess_move
 }
 
-fn negamax_root(
+fn mtdf(
     board: Board,
-    color_to_move: Color,
-    max_depth: i32,
-    mut moves: VecDeque<ChessMove>,
+    depth: i32,
+    color_to_optimize: Color,
+    first_guess: f32,
+    possible_moves: &Vec<ChessMove>,
     tt: Arc<Mutex<TransTable>>,
-) -> Vec<MoveEval> {
-    // Returns moves in best to worst order
-    let mut combined_evals: Vec<MoveEval> = vec![];
-    let mut handles = vec![];
+    stop_now: Arc<AtomicBool>,
+) -> Option<Vec<MoveEval>> {
+    // Not named alpha and beta for clarity's sake
+    let mut guess = first_guess;
+    let mut upperbound = f32::INFINITY;
+    let mut lowerbound = -f32::INFINITY;
+    let mut best_moves: Option<Vec<MoveEval>> = None;
 
-    let work = threading::divide_work(&mut moves);
+    debug!("First guess: {}", first_guess);
 
-    for (thread_num, thread_work) in work.into_iter().enumerate() {
-        let thread_local_tt = tt.clone();
+    loop {
+        let beta;
 
-        let thread = thread::spawn(move || {
-            let mut scores: Vec<MoveEval> = vec![];
-            let mut rng = SmallRng::from_entropy();
-            let current_thread_num = thread_num;
+        if guess == lowerbound {
+            beta = guess + 1.0;
+        } else {
+            beta = guess;
+        }
 
-            let alpha: f32 = -f32::INFINITY;
-            let beta = f32::INFINITY;
+        let results = negamax_root(
+            board,
+            beta - 1.0,
+            beta,
+            depth,
+            possible_moves.clone(),
+            tt.clone(),
+            stop_now.clone(),
+        );
+        dump_top_moves(&results);
 
-            for (i, possible_move) in thread_work.iter().enumerate() {
-                debug!(
-                    "Thread {}: Evaluating {}/{} moves",
-                    current_thread_num,
-                    i,
-                    thread_work.len()
-                );
+        guess = results[0].eval;
+        best_moves = Some(results);
 
-                let new_board = board.make_move_new(*possible_move);
+        if guess > 170.0 {
+            return best_moves;
+        }
 
-                // Check if it's a terminal node
-                if new_board.status() == chess::BoardStatus::Checkmate {
-                    // Return 10000 and +/- for how close to checkmate it is
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: 10000.0,
-                    };
-                    scores.push(score);
-                    break;
-                } else if new_board.status() == chess::BoardStatus::Stalemate {
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: -1000.0,
-                    };
-                    scores.push(score);
-                } else {
-                    let evaluation = -negamax(
-                        new_board,
-                        max_depth,
-                        max_depth - 1,
-                        -beta,
-                        -alpha,
-                        utils::flip_color(color_to_move),
-                        thread_local_tt.clone(),
-                        &mut rng,
-                    );
+        if guess < beta {
+            upperbound = guess;
+        } else {
+            lowerbound = guess;
+        }
 
-                    let score = MoveEval {
-                        chess_move: *possible_move,
-                        eval: evaluation,
-                    };
+        debug!(
+            "\nUpperbound: {}\nLowerbound: {}\nBeta: {}\nDepth: {}",
+            upperbound,
+            lowerbound,
+            beta,
+            depth
+        );
 
-                    scores.push(score);
-
-                    let alpha = f32::max(alpha, evaluation);
-
-                    if alpha >= beta {
-                        break;
-                    }
-                }
-            }
-
-            scores
-        });
-
-        handles.push(thread);
+        if lowerbound >= upperbound || stop_now.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
     }
 
-    for handle in handles {
-        let mut output = handle.join().unwrap();
-        combined_evals.append(&mut output);
+    best_moves
+}
+
+pub fn negamax_root(
+    board: Board,
+    mut alpha: f32,
+    beta: f32,
+    max_depth: i32,
+    moves: Vec<ChessMove>,
+    tt: Arc<Mutex<TransTable>>,
+    stop_now: Arc<AtomicBool>,
+) -> Vec<MoveEval> {
+    // Returns moves in best to worst order
+    let mut scores: Vec<MoveEval> = vec![];
+    let mut value = -f32::INFINITY;
+
+    for (i, possible_move) in moves.iter().enumerate() {
+        debug!("Evaluating {}/{} moves", i + 1, moves.len());
+
+        let new_board = board.make_move_new(*possible_move);
+
+        // Check if it's a terminal node
+        if new_board.status() == chess::BoardStatus::Checkmate {
+            // Return 10000 and +/- for how close to checkmate it is
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: 10000.0,
+            };
+            scores.push(score);
+            break;
+        } else if new_board.status() == chess::BoardStatus::Stalemate {
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: -1000.0,
+            };
+            scores.push(score);
+        } else {
+            value = -negamax(
+                new_board,
+                max_depth,
+                max_depth - 1,
+                -beta,
+                -alpha,
+                tt.clone(),
+                stop_now.clone(),
+            );
+
+            let score = MoveEval {
+                chess_move: *possible_move,
+                eval: value,
+            };
+
+            scores.push(score);
+
+            alpha = f32::max(alpha, value);
+
+            if alpha >= beta {
+                break;
+            }
+        }
     }
 
     // Sort from best to worst
-    combined_evals.sort_by(|a, b| b.cmp(a));
+    scores.sort_by(|a, b| b.cmp(a));
 
-    combined_evals
+    return scores;
 }
 
 fn negamax(
@@ -192,36 +279,17 @@ fn negamax(
     current_depth: i32,
     mut alpha: f32,
     mut beta: f32,
-    color: chess::Color,
     tt: Arc<Mutex<TransTable>>,
-    rng: &mut SmallRng,
+    stop_now: Arc<AtomicBool>,
 ) -> f32 {
     let alpha_original = alpha;
-    let current_board_status = current_board.status();
-
-    // Check if it's a terminal node
-    if current_board_status == chess::BoardStatus::Checkmate {
-        // Return 10000 and +/- for how close to checkmate it is
-        if current_board.side_to_move() == chess::Color::White {
-            return (10000 - current_depth) as f32;
-        } else {
-            return (-10000 + current_depth) as f32;
-        }
-    } else if current_board_status == chess::BoardStatus::Stalemate {
-        // Avoid stalemate at all costs but at less cost than checkmate
-        if current_board.side_to_move() == chess::Color::White {
-            return (-1000 + current_depth) as f32;
-        } else {
-            return (1000 - current_depth) as f32;
-        }
-    }
 
     let tt_entry = tt.lock().unwrap();
     let tt_entry_unwrapped = tt_entry.tt.get(&current_board);
 
     match tt_entry_unwrapped {
         Some(entry) => {
-            if entry.depth >= max_depth {
+            if entry.depth >= current_depth {
                 if entry.flag == Flag::Exact {
                     return entry.eval;
                 } else if entry.flag == Flag::Lowerbound {
@@ -238,22 +306,49 @@ fn negamax(
         None => {}
     }
 
+    // Unlock asap
     drop(tt_entry);
+
+    // Check for checkmate first before transposition tables
+    let current_board_status = current_board.status();
+    if current_board_status == chess::BoardStatus::Checkmate {
+        // Return 1000 and +/- for how close to checkmate it is
+        if current_board.side_to_move() == chess::Color::White {
+            return (10000 - (max_depth - current_depth)) as f32;
+        } else {
+            return (-10000 + (max_depth - current_depth)) as f32;
+        }
+    }
 
     // Negamax algorithm requires that evaluations be returned relative to the side being evaluated
     if current_depth == 0 {
-        if color == chess::Color::White {
-            return evaluate::evaluate(current_board, rng);
+        if current_board.side_to_move() == chess::Color::White {
+            return evaluate::evaluate(current_board);
         } else {
-            return -evaluate::evaluate(current_board, rng);
+            return -evaluate::evaluate(current_board);
         }
     }
 
     // Eventually use algorithm to sort them by potential to save time
     let possible_moves = MoveGen::new_legal(&current_board);
+    // Use fail soft variation
     let mut value = -f32::INFINITY;
 
+    if current_board_status == chess::BoardStatus::Stalemate {
+        // Avoid stalemate at all costs but at less cost than checkmate
+        if current_board.side_to_move() == chess::Color::White {
+            value = (-1000 + (max_depth - current_depth)) as f32;
+        } else {
+            value = (1000 - (max_depth - current_depth)) as f32;
+        }
+    }
+
     for possible_move in possible_moves {
+        if stop_now.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
+
+        // Check if it's a terminal node
         value = f32::max(
             value,
             -negamax(
@@ -262,9 +357,8 @@ fn negamax(
                 current_depth - 1,
                 -beta,
                 -alpha,
-                utils::flip_color(color),
                 tt.clone(),
-                rng,
+                stop_now.clone(),
             ),
         );
 
@@ -275,25 +369,22 @@ fn negamax(
         }
     }
 
-    // Don't write checkmates into the transposition table
-    if !(-9000.0..=9000.0).contains(&value) {
-        let flag: Flag;
-        if value <= alpha_original {
-            flag = Flag::Upperbound;
-        } else if value >= beta {
-            flag = Flag::Lowerbound;
-        } else {
-            flag = Flag::Exact;
-        }
-
-        let tt_entry = TransTableEntry {
-            depth: max_depth - current_depth + 1,
-            flag,
-            eval: value,
-        };
-
-        tt.lock().unwrap().add_entry(current_board, tt_entry);
+    let flag: Flag;
+    if value <= alpha_original {
+        flag = Flag::Upperbound;
+    } else if value >= beta {
+        flag = Flag::Lowerbound;
+    } else {
+        flag = Flag::Exact;
     }
+
+    let tt_entry = TransTableEntry {
+        depth: current_depth,
+        flag,
+        eval: value,
+    };
+
+    tt.lock().unwrap().add_entry(current_board, tt_entry);
 
     value
 }

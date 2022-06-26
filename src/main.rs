@@ -1,6 +1,6 @@
 mod search;
 mod tests;
-use chess::{self, BoardStatus, ChessMove};
+use chess::{self, BoardStatus, ChessMove, MoveGen};
 use chess::{Board, Color};
 use log::debug;
 use search::transposition_table;
@@ -12,8 +12,8 @@ use std::str::FromStr;
 fn main() {
     env_logger::init();
     // self_play();
-    testing();
-    // player_play();
+    // testing();
+    player_play();
 }
 
 #[allow(dead_code)]
@@ -26,7 +26,7 @@ fn self_play() {
         let color_to_move = Color::White;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 7, Some(tt_white.clone()));
+            search::iterative_deepening_search(board, color_to_move, 9, Some(tt_white.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine White Move: {}", engine_move);
 
@@ -37,7 +37,7 @@ fn self_play() {
         let color_to_move = Color::Black;
 
         let engine_move =
-            search::iterative_deepening_search(board, color_to_move, 7, Some(tt_black.clone()));
+            search::iterative_deepening_search(board, color_to_move, 9, Some(tt_black.clone()));
         board = board.make_move_new(engine_move);
         println!("Engine Black Move: {}", engine_move);
 
@@ -78,11 +78,23 @@ fn player_play() {
 
 #[allow(dead_code)]
 fn testing() {
+    /*
+    let board = Board::from_str("4k2r/1R3R2/p3p1pp/4b3/1BnNr3/8/P1P5/5K2 w - - 1 0")
+        .expect("Invalid FEN");
+    let moves = MoveGen::new_legal(&board).collect();
+    let tt = Arc::new(Mutex::new(transposition_table::TransTable::new()));
+
+    let best_move = search::negamax_root(board, -f32::INFINITY, f32::INFINITY, 8, moves, tt);
+
+    search::utils::dump_top_moves(&best_move);
+    println!("Top Engine Move: {}", best_move[0]);
+    */
+
+    // Tests the response of engine after e5 from vienna gambit accepted.
     let color_to_move = Color::Black;
     let board = Board::from_str("rnbqkb1r/pppp1ppp/5n2/4P3/5p2/2N5/PPPP2PP/R1BQKBNR b KQkq - 0 4")
         .expect("Invalid FEN");
     let best_move = search::iterative_deepening_search(board, color_to_move, 7, None);
-    debug!("Test");
-
-    println!("Top Engine Move: {}", best_move);
+    // Two possible variations, both are correct
+    assert!(best_move.to_string() == "f6g8" || best_move.to_string() == "d8e7");
 }
