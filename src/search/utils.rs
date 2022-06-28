@@ -17,13 +17,10 @@ pub fn flip_color(input_color: Color) -> Color {
 
 #[allow(dead_code)]
 pub fn dump_top_moves(moves: &Vec<MoveEval>) {
-    let mut output: Vec<String> = vec![];
 
     for chess_move in moves {
         debug!("{}", chess_move);
     }
-
-    
 }
 
 // Stolen shamelessly from https://github.com/rust-lang/rust/issues/72353 because

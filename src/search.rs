@@ -4,12 +4,10 @@ use std::fmt::Display;
 use std::sync::atomic::AtomicBool;
 use std::thread;
 
-use chess::{Board, ChessMove, Color, MoveGen};
+use chess::{Board, ChessMove, MoveGen};
 use log::debug;
-use log::info;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use rand::{prelude::SmallRng, SeedableRng};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -21,7 +19,7 @@ mod evaluate;
 pub(crate) mod transposition_table;
 pub(crate) mod utils;
 
-const helper_threads: i32 = 3;
+const HELPER_THREADS: i32 = 3;
 
 #[derive(Debug, Copy, Clone)]
 pub struct MoveEval {
@@ -64,7 +62,6 @@ impl Display for MoveEval {
 // Uses iterative deepening technique and transposition tables to optimize faster search
 pub fn iterative_deepening_search(
     board: Board,
-    color_to_move: Color,
     target_depth: i32,
     tt_raw: Option<Arc<Mutex<TransTable>>>,
 ) -> ChessMove {
@@ -75,36 +72,14 @@ pub fn iterative_deepening_search(
         Arc::new(Mutex::new(transposition_table::TransTable::new()));
     let mut best_move: Option<MoveEval> = None;
     let mut rng = thread_rng();
-    let mut stop_now = Arc::new(AtomicBool::new(false));
+    let stop_now = Arc::new(AtomicBool::new(false));
     // let mut handles = vec![];
 
     if let Some(external_table) = tt_raw {
         tt = external_table;
     }
 
-    let mut possible_moves: Vec<ChessMove> = MoveGen::new_legal(&board).collect();
-
-    /*
-    for _ in 0..helper_threads {
-        // Shuffle the possible moves for better performance
-        let mut thread_local_move_list = possible_moves.clone();
-        thread_local_move_list.shuffle(&mut rng);
-        let thread_local_tt = tt.clone();
-        let thread_local_stop_now = stop_now.clone();
-
-        thread::spawn(move || {
-            negamax(
-                board,
-                target_depth,
-                target_depth,
-                -f32::INFINITY,
-                f32::INFINITY,
-                thread_local_tt,
-                thread_local_stop_now,
-            );
-        });
-    }
-    */
+    let possible_moves: Vec<ChessMove> = MoveGen::new_legal(&board).collect();
 
     while depth < target_depth + 1 {
         // the best moves from the last iteration are searched first to improve alpha-beta pruning performance
@@ -114,12 +89,30 @@ pub fn iterative_deepening_search(
             depth
         );
 
-        
+        for _ in 0..HELPER_THREADS {
+            // Shuffle the possible moves for better performance
+            let mut thread_local_move_list = possible_moves.clone();
+            thread_local_move_list.shuffle(&mut rng);
+            let thread_local_tt = tt.clone();
+            let thread_local_stop_now = stop_now.clone();
+
+            thread::spawn(move || {
+                negamax(
+                    board,
+                    target_depth,
+                    target_depth,
+                    -f32::INFINITY,
+                    f32::INFINITY,
+                    thread_local_tt,
+                    thread_local_stop_now,
+                );
+            });
+        }
+
         // Need to rethink... this may result in two copies of the transposition table at once
         let search_result = mtdf(
             board,
             depth,
-            color_to_move,
             initial_guess,
             &possible_moves,
             tt.clone(),
@@ -146,9 +139,8 @@ pub fn iterative_deepening_search(
 fn mtdf(
     board: Board,
     depth: i32,
-    color_to_optimize: Color,
     first_guess: f32,
-    possible_moves: &Vec<ChessMove>,
+    possible_moves: &[ChessMove],
     tt: Arc<Mutex<TransTable>>,
     stop_now: Arc<AtomicBool>,
 ) -> Option<Vec<MoveEval>> {
@@ -161,20 +153,18 @@ fn mtdf(
     debug!("First guess: {}", first_guess);
 
     loop {
-        let beta;
-
-        if guess == lowerbound {
-            beta = guess + 1.0;
+        let beta = if guess == lowerbound {
+            guess + 1.0
         } else {
-            beta = guess;
-        }
+            guess
+        };
 
         let results = negamax_root(
             board,
             beta - 1.0,
             beta,
             depth,
-            possible_moves.clone(),
+            possible_moves,
             tt.clone(),
             stop_now.clone(),
         );
@@ -195,10 +185,7 @@ fn mtdf(
 
         debug!(
             "\nUpperbound: {}\nLowerbound: {}\nBeta: {}\nDepth: {}",
-            upperbound,
-            lowerbound,
-            beta,
-            depth
+            upperbound, lowerbound, beta, depth
         );
 
         if lowerbound >= upperbound || stop_now.load(std::sync::atomic::Ordering::Relaxed) {
@@ -214,7 +201,7 @@ pub fn negamax_root(
     mut alpha: f32,
     beta: f32,
     max_depth: i32,
-    moves: Vec<ChessMove>,
+    moves: &[ChessMove],
     tt: Arc<Mutex<TransTable>>,
     stop_now: Arc<AtomicBool>,
 ) -> Vec<MoveEval> {
@@ -271,13 +258,13 @@ pub fn negamax_root(
     // Sort from best to worst
     scores.sort_by(|a, b| b.cmp(a));
 
-    return scores;
+    scores
 }
 
 fn negamax(
-    current_board: chess::Board,
+    board: chess::Board,
     max_depth: i32,
-    current_depth: i32,
+    depth_left: i32,
     mut alpha: f32,
     mut beta: f32,
     tt: Arc<Mutex<TransTable>>,
@@ -286,11 +273,11 @@ fn negamax(
     let alpha_original = alpha;
 
     let tt_entry = tt.lock().unwrap();
-    let tt_entry_unwrapped = tt_entry.tt.get(&current_board.get_hash());
+    let tt_entry_unwrapped = tt_entry.tt.get(&board.get_hash());
 
     match tt_entry_unwrapped {
         Some(entry) => {
-            if entry.depth >= current_depth {
+            if entry.depth >= depth_left {
                 if entry.flag == Flag::Exact {
                     return entry.eval;
                 } else if entry.flag == Flag::Lowerbound {
@@ -311,36 +298,36 @@ fn negamax(
     drop(tt_entry);
 
     // Check for checkmate first before transposition tables
-    let current_board_status = current_board.status();
+    let current_board_status = board.status();
     if current_board_status == chess::BoardStatus::Checkmate {
         // Return 1000 and +/- for how close to checkmate it is
-        if current_board.side_to_move() == chess::Color::White {
-            return (10000 - (max_depth - current_depth)) as f32;
+        if board.side_to_move() == chess::Color::White {
+            return (10000 - (max_depth - depth_left)) as f32;
         } else {
-            return (-10000 + (max_depth - current_depth)) as f32;
+            return (-10000 + (max_depth - depth_left)) as f32;
         }
     }
 
     // Negamax algorithm requires that evaluations be returned relative to the side being evaluated
-    if current_depth == 0 {
-        if current_board.side_to_move() == chess::Color::White {
-            return evaluate::evaluate(current_board);
+    if depth_left == 0 {
+        if board.side_to_move() == chess::Color::White {
+            return evaluate::evaluate(board);
         } else {
-            return -evaluate::evaluate(current_board);
+            return -evaluate::evaluate(board);
         }
     }
 
     // Eventually use algorithm to sort them by potential to save time
-    let possible_moves = MoveGen::new_legal(&current_board);
+    let possible_moves = MoveGen::new_legal(&board);
     // Use fail soft variation
     let mut value = -f32::INFINITY;
 
     if current_board_status == chess::BoardStatus::Stalemate {
         // Avoid stalemate at all costs but at less cost than checkmate
-        if current_board.side_to_move() == chess::Color::White {
-            value = (-1000 + (max_depth - current_depth)) as f32;
+        if board.side_to_move() == chess::Color::White {
+            value = (-1000 + (max_depth - depth_left)) as f32;
         } else {
-            value = (1000 - (max_depth - current_depth)) as f32;
+            value = (1000 - (max_depth - depth_left)) as f32;
         }
     }
 
@@ -353,9 +340,9 @@ fn negamax(
         value = f32::max(
             value,
             -negamax(
-                current_board.make_move_new(possible_move),
+                board.make_move_new(possible_move),
                 max_depth,
-                current_depth - 1,
+                depth_left - 1,
                 -beta,
                 -alpha,
                 tt.clone(),
@@ -380,12 +367,12 @@ fn negamax(
     }
 
     let tt_entry = TransTableEntry {
-        depth: current_depth,
+        depth: depth_left,
         flag,
         eval: value,
     };
 
-    tt.lock().unwrap().add_entry(current_board, tt_entry);
+    tt.lock().unwrap().add_entry(board, tt_entry);
 
     value
 }

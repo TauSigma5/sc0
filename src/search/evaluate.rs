@@ -4,9 +4,7 @@
 //! that the possible moves decrease from the loss of a bishop may compensate for that. Each additional move would add 0.1
 //! The randomness is added so that moves with the same eval can be chosen randomly.
 
-use chess::{Color, MoveGen};
-use log::debug;
-use rand::prelude::SmallRng;
+use chess::{Color};
 
 // This  implements Piece Square Tables (PSQT) for each piece type. The
 // PSQT's are written from White's point of view, as if looking at a chess
@@ -199,12 +197,12 @@ pub fn evaluate(board: chess::Board) -> f32 {
 
 fn is_endgame(white_queen: i32, black_queen: i32, white_minor: i32, black_minor: i32) -> bool {
     if white_queen == 0 && black_queen == 0 && white_minor <= 2 && black_minor <= 2 {
-        return true;
+        return true
     } else if white_queen == 1 && black_queen == 0 && white_minor == 0 && black_minor == 0 {
-        return true;
+        return true
     } else if white_queen == 0 && black_queen == 1 && white_minor == 0 && black_minor == 0 {
-        return true;
-    } else {
-        return false;
-    }
+        return true
+    } 
+    
+    false
 }
